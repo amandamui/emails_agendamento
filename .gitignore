@@ -1,0 +1,33 @@
+# ===== Segredos (NUNCA versionar) =====
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials*.json
+secrets*
+
+# ===== Ambiente virtual / Python =====
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# ===== Dados da empresa (CNPJs, NFs, e-mails de terceiros — LGPD) =====
+atrasadas/
+downloads/
+*.xlsx
+*.xls
+*.xlsm
+*.csv
+~$*
+
+# ===== Prints de erro e logs (podem mostrar dados do portal) =====
+*.png
+*.log
+
+# ===== Editor / sistema =====
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
