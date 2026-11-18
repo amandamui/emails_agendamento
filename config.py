@@ -28,3 +28,6 @@ def opcional(nome: str, padrao: str = "") -> str:
 # Desativa a verificação de certificado HTTPS só se for explicitamente necessário
 # (ex.: proxy corporativo que intercepta TLS). Padrão: verificação LIGADA.
 IGNORAR_CERTIFICADO = opcional("IGNORAR_CERTIFICADO", "0") == "1"
+
+# Fornecedor da fase de teste (filtro "contém" na Razão Social)
+FORNECEDOR_TESTE = opcional("FORNECEDOR_TESTE", "Gates")
