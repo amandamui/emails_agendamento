@@ -77,10 +77,10 @@ def dias_uteis_atraso(agenda: pd.Series, data_referencia: pd.Timestamp | None = 
     return resultado
 
 
-def dias_corridos_atraso(agenda: pd.Series, data_referencia: pd.Timestamp | None = None) -> pd.Series:
-    """Dias corridos entre a Agenda e a data de referência (agenda no futuro → 0)."""
+def dias_corridos_desde(datas: pd.Series, data_referencia: pd.Timestamp | None = None) -> pd.Series:
+    """Dias corridos entre cada data (ex.: Emissão) e a data de referência, como HOJE()-data no Excel."""
     ref = (data_referencia or hoje()).normalize()
-    datas = pd.to_datetime(agenda, dayfirst=True, errors="coerce").dt.normalize()
+    datas = pd.to_datetime(datas, dayfirst=True, errors="coerce").dt.normalize()
     return (ref - datas).dt.days.clip(lower=0).astype("Int64")
 
 

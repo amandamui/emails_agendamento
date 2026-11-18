@@ -7,7 +7,7 @@ import re
 import tempfile
 
 from config import FORNECEDOR_TESTE, obrigatorio, opcional
-from regras import (DIAS_CORRIDOS_CRITICO, DIAS_UTEIS_MINIMO, deve_cobrar, dias_corridos_atraso,
+from regras import (DIAS_CORRIDOS_CRITICO, DIAS_UTEIS_MINIMO, deve_cobrar, dias_corridos_desde,
                     dias_uteis_atraso, e_critico)
 
 # =========================================================
@@ -19,8 +19,8 @@ DOWNLOADS_DIR = pathlib.Path(__file__).parent / "atrasadas"
 EMAIL_REMETENTE = obrigatorio("EMAIL_REMETENTE")
 EMAIL_DESTINATARIO = obrigatorio("EMAIL_TESTE")
 
-# 🚨 As regras de atraso ficam em regras.py. Tudo é em dias CORRIDOS, exceto o mínimo
-#    para cobrar (4º dia útil após a Agenda), que considera fins de semana e feriados.
+# 🚨 Regras em regras.py: dias exibidos e alerta crítico = dias CORRIDOS desde a Emissão;
+#    mínimo para cobrar = 4º dia útil após a Agenda (sem fins de semana e feriados).
 
 # =========================================================
 # 📧 FUNÇÕES DE E-MAIL
@@ -177,8 +177,7 @@ def montar_corpo_email(df_fornecedor: pd.DataFrame, fornecedor: str) -> str:
         fundo="#eef5fb", borda_esquerda=AZUL,
     )
     aviso = _bloco(
-        "<b>Atenção:</b> é de suma importância que o fornecedor dê um retorno com as devidas tratativas. "
-        "<b>Caso não haja devolutiva em até 24 horas, as notas serão manifestadas.</b>",
+        "<b>Atenção:</b> é de suma importância que o fornecedor dê um retorno com as devidas tratativas.",
         fundo="#fff8e1", borda_esquerda="#e0a800",
     )
     assinatura = carregar_assinatura()
@@ -250,7 +249,7 @@ def filtrar_fornecedor(consolidado: pd.DataFrame, fornecedor: str,
     O atraso ('Dias') é RECALCULADO aqui, na data de referência (padrão: hoje), para não
     depender do valor gravado no Excel no dia da consolidação.
     """
-    for coluna in ("Razão Social", "Agenda"):
+    for coluna in ("Razão Social", "Agenda", "Emissão"):
         if coluna not in consolidado.columns:
             print(f"❌ Coluna '{coluna}' não encontrada no consolidado.")
             return consolidado.iloc[0:0]
@@ -259,7 +258,7 @@ def filtrar_fornecedor(consolidado: pd.DataFrame, fornecedor: str,
     df = consolidado[
         consolidado["Razão Social"].astype(str).str.contains(fornecedor, case=False, na=False, regex=False)
     ].copy()
-    df["Dias"] = dias_corridos_atraso(df["Agenda"], data_referencia)  # exibido no e-mail
+    df["Dias"] = dias_corridos_desde(df["Emissão"], data_referencia)  # exibido no e-mail (HOJE() - Emissão)
     df["Crítico"] = e_critico(df["Dias"])
     cobrar = deve_cobrar(dias_uteis_atraso(df["Agenda"], data_referencia))  # única regra em dias úteis
     return df[cobrar]

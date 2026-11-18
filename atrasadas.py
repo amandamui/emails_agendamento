@@ -3,7 +3,7 @@ import pathlib
 import pandas as pd
 
 from config import FORNECEDOR_TESTE
-from regras import dias_corridos_atraso
+from regras import dias_corridos_desde
 from teste_email import enviar_email, filtrar_fornecedor
 
 # =========================================================
@@ -79,14 +79,14 @@ def run():
         if col in consolidado.columns:
             consolidado[col] = pd.to_datetime(consolidado[col], dayfirst=True, errors='coerce')
 
-    # 3. Coluna 'Dias' = dias CORRIDOS de atraso desde a Agenda (regra em regras.py).
+    # 3. Coluna 'Dias' = dias CORRIDOS desde a Emissão (HOJE() - Emissão).
     #    É uma foto do dia da consolidação, para conferência; no envio o valor é recalculado.
-    if 'Agenda' in consolidado.columns:
-        consolidado['Dias'] = dias_corridos_atraso(consolidado['Agenda'])
+    if 'Emissão' in consolidado.columns:
+        consolidado['Dias'] = dias_corridos_desde(consolidado['Emissão'])
         cols = ['Dias'] + [c for c in consolidado.columns if c != 'Dias']
         consolidado = consolidado[cols]
     else:
-        print("⚠️ Coluna 'Agenda' não encontrada; coluna 'Dias' (atraso) não foi calculada.")
+        print("⚠️ Coluna 'Emissão' não encontrada; coluna 'Dias' não foi calculada.")
 
     # Salva o arquivo tratado (para conferência)
     try:
