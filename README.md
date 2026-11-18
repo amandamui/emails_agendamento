@@ -11,16 +11,18 @@ extrator.py ──► 1. Login no portal e download da planilha de cada filial
      ▼
 atrasadas.py ─► 2. Consolida e trata a planilha
                    - remove colunas internas (CNPJ, valor, protocolo, usuários…)
-                   - calcula "Dias" = hoje − data de emissão
+                   - calcula "Dias" = dias corridos de atraso desde a Agenda
                    - salva atrasadas/Atrasadas_Consolidado.xlsx
-                3. Filtra o fornecedor e envia o e-mail pelo Outlook
+                3. Filtra o fornecedor (só notas a partir do 4º dia útil após a Agenda)
+                   e envia o e-mail pelo Outlook, usando o layout do teste_email.py
 ```
 
 | Arquivo | Função |
 |---|---|
 | `extrator.py` | Fluxo completo: login, download por filial e, no final, chama o `atrasadas.py` |
-| `atrasadas.py` | Consolida as planilhas baixadas, trata as colunas e envia o e-mail (fase 1: um fornecedor) |
-| `teste_email.py` | Envia um e-mail de teste com layout novo a partir do consolidado já gerado, sem abrir o portal |
+| `atrasadas.py` | Consolida as planilhas baixadas, trata as colunas e chama o envio do e-mail (fase 1: um fornecedor) |
+| `teste_email.py` | **Fonte única do e-mail**: layout, regra das 72h e envio. Rodando direto, envia a partir do consolidado já gerado, sem abrir o portal |
+| `regras.py` | **Regras de negócio**: atraso em dias corridos; só o mínimo para cobrar usa dias úteis (4º dia útil, sem fins de semana e feriados nacionais), atraso crítico (mais de 60 dias corridos desde a Agenda) |
 | `config.py` | Lê as configurações e senhas do arquivo `.env` |
 | `.env.example` | Modelo do `.env` (sem valores reais) |
 
@@ -51,8 +53,9 @@ Preencha o `.env`:
 | Variável | Descrição |
 |---|---|
 | `BRA_EMAIL` / `BRA_SENHA` | Login do portal |
-| `EMAIL_REMETENTE` | Conta do Outlook que envia (teste_email.py) |
+| `EMAIL_REMETENTE` | Conta do Outlook que envia o e-mail |
 | `EMAIL_TESTE` | Para quem vai o e-mail de teste |
+| `FORNECEDOR_TESTE` | Fornecedor da fase de teste (padrão: `Gates`) |
 | `IGNORAR_CERTIFICADO` | Deixe `0`. Use `1` só se o proxy da empresa bloquear o HTTPS |
 
 ## Uso
@@ -66,9 +69,12 @@ python atrasadas.py
 
 # Só testar o layout do e-mail a partir do consolidado existente
 python teste_email.py
+
+# Simular o envio de outra data (ex.: a próxima terça-feira)
+python teste_email.py 2026-11-24
 ```
 
-O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` (`atrasadas.py` e `teste_email.py`).
+O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` no `.env` (padrão: `Gates`).
 
 > ⚠️ O e-mail é enviado direto (`mail.Send()`). Para revisar antes de enviar, troque por `mail.Display()`.
 
@@ -87,6 +93,27 @@ O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` (`atrasadas.py` 
 | `⚪ Sem registros` em uma filial | A filial não tem notas atrasadas, ou a página demorou. Confira o print em `atrasadas/erros/`. |
 | Erro ao enviar e-mail | O Outlook precisa estar aberto e configurado na máquina. |
 | `Import "playwright" could not be resolved` no VS Code | Selecione o interpretador do `.venv` (`Ctrl+Shift+P` → *Python: Select Interpreter*). |
+
+## Integração GitHub + Jira + Claude
+
+Toda branch e commit citam o card do Jira (projeto **A122**):
+
+```powershell
+git checkout -b feature/A122-11-regra-dias-uteis
+git commit -m "A122-11: Cobra a partir do 4º dia útil após a Agenda"
+git push -u origin feature/A122-11-regra-dias-uteis
+```
+
+| O que acontece | Quem faz |
+|---|---|
+| Commits, branches e PRs aparecem no card (painel *Desenvolvimento*) | App **GitHub for Jira** |
+| Card muda de coluna (branch → Em andamento; PR → Em revisão; merge → Concluído) | **Jira Automation** |
+| Claude resume o push em português e comenta no card | GitHub Action `.github/workflows/jira-claude.yml` |
+
+Secrets necessários no GitHub (*Settings → Secrets and variables → Actions*):
+`ANTHROPIC_API_KEY`, `JIRA_BASE_URL` (ex.: `https://suaempresa.atlassian.net`), `JIRA_EMAIL`, `JIRA_API_TOKEN`.
+
+Planilhas, prints, `.env` e a pasta `atrasadas/` nunca são enviados ao Claude nem ao Jira.
 
 ## Segurança
 
@@ -108,5 +135,6 @@ Este projeto lida com **senha do portal** e com **dados de negócio** (CNPJs, no
 ## Próximos passos
 
 - [ ] Enviar para todos os fornecedores, com e-mail de contato por fornecedor
-- [ ] Agendar a execução automática (Agendador de Tarefas do Windows)
+- [ ] Agendar a execução automática semanal, **toda terça-feira** (Agendador de Tarefas do Windows). `regras.DIA_ENVIO_SEMANAL` já reserva essa configuração
+- [ ] Cadastrar feriados estaduais/municipais das filiais em `regras.FERIADOS_EXTRAS`
 - [ ] Usar uma conta de serviço no portal em vez de um usuário pessoal
