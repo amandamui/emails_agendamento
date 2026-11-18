@@ -11,7 +11,7 @@ extrator.py ──► 1. Login no portal e download da planilha de cada filial
      ▼
 atrasadas.py ─► 2. Consolida e trata a planilha
                    - remove colunas internas (CNPJ, valor, protocolo, usuários…)
-                   - calcula "Dias" = dias corridos de atraso desde a Agenda
+                   - calcula "Dias" = dias corridos desde a Emissão (HOJE() − Emissão)
                    - salva atrasadas/Atrasadas_Consolidado.xlsx
                 3. Filtra o fornecedor (só notas a partir do 4º dia útil após a Agenda)
                    e envia o e-mail pelo Outlook, usando o layout do teste_email.py
@@ -22,7 +22,7 @@ atrasadas.py ─► 2. Consolida e trata a planilha
 | `extrator.py` | Fluxo completo: login, download por filial e, no final, chama o `atrasadas.py` |
 | `atrasadas.py` | Consolida as planilhas baixadas, trata as colunas e chama o envio do e-mail (fase 1: um fornecedor) |
 | `teste_email.py` | **Fonte única do e-mail**: layout, regra das 72h e envio. Rodando direto, envia a partir do consolidado já gerado, sem abrir o portal |
-| `regras.py` | **Regras de negócio**: atraso em dias corridos; só o mínimo para cobrar usa dias úteis (4º dia útil, sem fins de semana e feriados nacionais), atraso crítico (mais de 60 dias corridos desde a Agenda) |
+| `regras.py` | **Regras de negócio**: dias exibidos em dias corridos desde a Emissão; só o mínimo para cobrar usa dias úteis após a Agenda (4º dia útil, sem fins de semana e feriados nacionais), alerta crítico (mais de 60 dias corridos desde a Emissão) |
 | `config.py` | Lê as configurações e senhas do arquivo `.env` |
 | `.env.example` | Modelo do `.env` (sem valores reais) |
 

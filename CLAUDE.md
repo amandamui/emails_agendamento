@@ -15,7 +15,7 @@ Visão geral, instalação e uso: ver README.md.
 
 ## Regras de negócio
 
-- Ficam só em `regras.py`. Atraso é em dias corridos desde a Agenda; a única regra em dias úteis
+- Ficam só em `regras.py`. Dias exibidos e alerta crítico (>60) = dias corridos desde a Emissão (HOJE()-Emissão); a única regra em dias úteis
   é o mínimo para cobrar (4º dia útil). Envio futuro: semanal, às terças.
 
 ## Segurança
