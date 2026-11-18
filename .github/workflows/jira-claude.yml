@@ -1,0 +1,40 @@
+name: Claude comenta no Jira
+
+# A cada push, o Claude resume as mudanças e comenta no card do Jira citado
+# na branch ou no commit (ex.: A122-11). A movimentação dos cards é feita pelo
+# Jira Automation (ver README → "Integração GitHub + Jira + Claude").
+on:
+  push:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jira-claude-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  comentar:
+    # Sem chave do Jira na branch/commits, o script termina sem chamar o Claude
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependências
+        run: pip install anthropic requests
+
+      - name: Resumir com Claude e comentar no Jira
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: python .github/scripts/comentar_jira.py
