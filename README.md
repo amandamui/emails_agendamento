@@ -6,23 +6,28 @@ Robô que baixa do portal **app.brautoparts.com.br** (SRM → Agendamentos → a
 
 ```
 extrator.py ──► 1. Login no portal e download da planilha de cada filial
-                   (salva em atrasadas/Agendamento_<Filial>.xlsx)
+                   (salva em atrasadas/1_downloads/Agendamento_<Filial>.xlsx)
      │
      ▼
 atrasadas.py ─► 2. Consolida e trata a planilha
                    - remove colunas internas (CNPJ, valor, protocolo, usuários…)
                    - calcula "Dias" = dias corridos desde a Emissão (HOJE() − Emissão)
-                   - salva atrasadas/Atrasadas_Consolidado.xlsx
-                3. Filtra o fornecedor (só notas a partir do 4º dia útil após a Agenda)
-                   e envia o e-mail pelo Outlook, usando o layout do teste_email.py
+                   - salva atrasadas/2_consolidado/Atrasadas_Consolidado.xlsx
+     │
+     ▼
+disparador.py ► 3. Filtra as notas a partir do 4º dia útil após a Agenda, cruza com a base
+                   de contatos e dispara um e-mail por fornecedor (layout do teste_email.py)
 ```
+
+Qualquer um dos três scripts termina no disparo e completa sozinho a etapa que faltar:
+sem consolidado, consolida; sem planilhas baixadas, extrai do portal antes.
 
 | Arquivo | Função |
 |---|---|
-| `extrator.py` | Fluxo completo: login, download por filial e, no final, chama o `atrasadas.py` |
-| `atrasadas.py` | Consolida as planilhas baixadas, trata as colunas e chama o envio do e-mail (fase 1: um fornecedor) |
+| `extrator.py` | Sempre extrai de novo do portal, consolida e dispara |
+| `atrasadas.py` | Reconsolida as planilhas de `1_downloads` (extrai antes, se estiver vazia) e dispara |
 | `teste_email.py` | **Fonte única do e-mail**: layout, regra das 72h e envio. Rodando direto, envia a partir do consolidado já gerado, sem abrir o portal |
-| `disparador.py` | **Fase 2**: cruza o consolidado com `base fornecedores/` e cobra todos os fornecedores com e-mail. Sem `--enviar` só simula; notas sem contato vão para `atrasadas/Fornecedores_Pendentes.xlsx` e os envios para `atrasadas/Log_Envios.csv` |
+| `disparador.py` | **Fase 2**: cruza o consolidado com `base fornecedores/` e cobra todos os fornecedores com e-mail. Sem parâmetro só simula; `--teste` manda tudo para o `EMAIL_TESTE`; `--enviar` manda para os fornecedores. Notas sem contato vão para `atrasadas/3_envios/Fornecedores_Pendentes.xlsx` e os envios para `atrasadas/3_envios/Log_Envios.csv` |
 | `regras.py` | **Regras de negócio**: dias exibidos em dias corridos desde a Emissão; só o mínimo para cobrar usa dias úteis após a Agenda (4º dia útil, sem fins de semana e feriados nacionais), alerta crítico (mais de 60 dias corridos desde a Emissão) |
 | `config.py` | Lê as configurações e senhas do arquivo `.env` |
 | `.env.example` | Modelo do `.env` (sem valores reais) |
@@ -62,17 +67,18 @@ Preencha o `.env`:
 ## Uso
 
 ```powershell
-# Fluxo completo: baixa, consolida e envia o e-mail
-python extrator.py
+# Os três aceitam: [AAAA-MM-DD] [--teste | --enviar]
+#   sem parâmetro → SIMULAÇÃO (só lista quem receberia, não envia nada)
+#   --teste       → envia todos os e-mails para o EMAIL_TESTE do .env
+#   --enviar      → envia para os fornecedores
 
-# Só consolidar/enviar a partir das planilhas que já estão em atrasadas/
-python atrasadas.py
+python extrator.py --teste       # baixa tudo de novo, consolida e testa no seu e-mail
+python atrasadas.py              # reconsolida o que já foi baixado e simula
+python disparador.py             # usa o consolidado existente (gera o que faltar) e simula
+python disparador.py 2026-11-24  # simula o envio de outra data (ex.: a próxima terça)
 
-# Só testar o layout do e-mail a partir do consolidado existente
+# Teste antigo (fase 1): um fornecedor só, a partir do consolidado existente
 python teste_email.py
-
-# Simular o envio de outra data (ex.: a próxima terça-feira)
-python teste_email.py 2026-11-24
 ```
 
 O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` no `.env` (padrão: `Gates`).
@@ -81,8 +87,10 @@ O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` no `.env` (padr�
 
 ### Saídas
 
-- `atrasadas/Agendamento_<Filial>.xlsx` — planilha bruta de cada filial (apagadas a cada nova execução)
-- `atrasadas/Atrasadas_Consolidado.xlsx` — planilha final tratada
+- `atrasadas/1_downloads/Agendamento_<Filial>.xlsx` — planilha bruta de cada filial (apagadas a cada nova execução)
+- `atrasadas/2_consolidado/Atrasadas_Consolidado.xlsx` — planilha final tratada
+- `atrasadas/3_envios/Log_Envios.csv` — histórico de envios do `disparador.py` (acumulado)
+- `atrasadas/3_envios/Fornecedores_Pendentes.xlsx` — notas a cobrar sem e-mail cadastrado
 - `atrasadas/erros/<Filial>.png` — print da tela das filiais em que o botão de exportar não apareceu
 
 ## Problemas comuns
