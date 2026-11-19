@@ -6,14 +6,13 @@ import pathlib
 import re
 import tempfile
 
-from config import FORNECEDOR_TESTE, obrigatorio, opcional
+from config import FORNECEDOR_TESTE, PASTA_CONSOLIDADO, obrigatorio, opcional
 from regras import (DIAS_CORRIDOS_CRITICO, DIAS_UTEIS_MINIMO, deve_cobrar, dias_corridos_desde,
                     dias_uteis_atraso, e_critico)
 
 # =========================================================
 # ⚙️ CONFIGURAÇÕES
 # =========================================================
-DOWNLOADS_DIR = pathlib.Path(__file__).parent / "atrasadas"
 
 # Quem está enviando e quem está recebendo o teste
 EMAIL_REMETENTE = obrigatorio("EMAIL_REMETENTE")
@@ -227,7 +226,7 @@ def montar_corpo_email(df_fornecedor: pd.DataFrame, fornecedor: str) -> str:
 
 
 def localizar_consolidado() -> pathlib.Path | None:
-    candidatos = [p for p in DOWNLOADS_DIR.glob("Atrasadas_Consolidado*.xlsx") if not p.name.startswith("~$")]
+    candidatos = [p for p in PASTA_CONSOLIDADO.glob("Atrasadas_Consolidado*.xlsx") if not p.name.startswith("~$")]
     return max(candidatos, key=lambda p: p.stat().st_mtime) if candidatos else None
 
 def ler_excel(arquivo: pathlib.Path) -> pd.DataFrame:
@@ -270,14 +269,15 @@ def notas_a_cobrar(df: pd.DataFrame, data_referencia: pd.Timestamp | None = None
     return df[cobrar]
 
 
-def enviar_email(df_fornecedor: pd.DataFrame, fornecedor: str, destinatario: str = EMAIL_DESTINATARIO) -> bool:
+def enviar_email(df_fornecedor: pd.DataFrame, fornecedor: str, destinatario: str = EMAIL_DESTINATARIO,
+                 prefixo_assunto: str = "") -> bool:
     """Monta e envia pelo Outlook o e-mail de cobrança de um fornecedor. Retorna True se enviou."""
     if df_fornecedor.empty:
         print(f"⚠️ Nenhuma nota de {fornecedor} com {DIAS_UTEIS_MINIMO}+ dias úteis de atraso; e-mail não enviado.")
         return False
 
     corpo_email = montar_corpo_email(df_fornecedor, fornecedor)
-    assunto = f"Ação Necessária: Notas Atrasadas – {fornecedor.upper()}"
+    assunto = f"{prefixo_assunto}Ação Necessária: Notas Atrasadas – {fornecedor.upper()}"
 
     print(f"📧 Disparando e-mail para {fornecedor}...")
     try:
