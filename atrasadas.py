@@ -2,17 +2,15 @@ import pathlib
 
 import pandas as pd
 
-from config import FORNECEDOR_TESTE
+from config import PASTA_CONSOLIDADO, PASTA_DOWNLOADS
 from regras import dias_corridos_desde
-from teste_email import enviar_email, filtrar_fornecedor
 
 # =========================================================
 # ⚙️ CONFIGURAÇÕES
 # =========================================================
 
-# Pasta onde ficam as planilhas baixadas (mesma usada pelo teste_email.py)
-DOWNLOADS_DIR = pathlib.Path(__file__).parent / "atrasadas"
-ARQUIVO_FINAL = DOWNLOADS_DIR / "Atrasadas_Consolidado.xlsx"
+# Caminhos definidos em config.py (atrasadas/1_downloads e atrasadas/2_consolidado)
+ARQUIVO_FINAL = PASTA_CONSOLIDADO / "Atrasadas_Consolidado.xlsx"
 
 # O layout e o envio do e-mail ficam em teste_email.py (fonte única).
 
@@ -23,13 +21,13 @@ ARQUIVO_FINAL = DOWNLOADS_DIR / "Atrasadas_Consolidado.xlsx"
 
 
 def carregar_tabelas() -> list[pd.DataFrame]:
-    """Lê todas as planilhas baixadas na pasta DOWNLOADS_DIR (exceto o consolidado)."""
-    if not DOWNLOADS_DIR.exists():
-        print(f"⚠️ Pasta não encontrada: {DOWNLOADS_DIR}")
+    """Lê todas as planilhas baixadas na pasta PASTA_DOWNLOADS (exceto o consolidado)."""
+    if not PASTA_DOWNLOADS.exists():
+        print(f"⚠️ Pasta não encontrada: {PASTA_DOWNLOADS}")
         return []
 
     tabelas = []
-    for arquivo in sorted(DOWNLOADS_DIR.glob("*.xls*")):
+    for arquivo in sorted(PASTA_DOWNLOADS.glob("*.xls*")):
         if arquivo.name.startswith("Atrasadas_Consolidado") or arquivo.name.startswith("~$"):
             continue  # ignora o próprio consolidado e arquivos temporários do Excel
         try:
@@ -45,15 +43,25 @@ def carregar_tabelas() -> list[pd.DataFrame]:
 # =========================================================
 
 
-def run():
-    # TODO: se o login/download automático (navegador) for integrado aqui,
-    # ele deve salvar as planilhas em DOWNLOADS_DIR antes desta etapa.
-    print(f"📂 Lendo planilhas em: {DOWNLOADS_DIR}")
+def consolidar(extrair_se_vazio: bool = True) -> pathlib.Path | None:
+    """Consolida as planilhas de 1_downloads; se não houver nenhuma, extrai antes do portal.
+
+    Retorna o caminho do consolidado salvo (ou None se não houver dados).
+    """
+    print(f"📂 Lendo planilhas em: {PASTA_DOWNLOADS}")
     tabelas = carregar_tabelas()
 
+    if not tabelas and not extrair_se_vazio:
+        print("❌ Nenhuma planilha baixada; não há consolidado para salvar.")
+        return None
     if not tabelas:
-        print("⚠️ Nenhuma tabela foi carregada; não há consolidado para salvar.")
-        return
+        print("⚠️ Nenhuma planilha baixada; iniciando a extração no portal…\n")
+        import extrator  # import tardio: só exige BRA_EMAIL/BRA_SENHA quando precisa extrair
+        extrator.baixar_planilhas()
+        tabelas = carregar_tabelas()
+        if not tabelas:
+            print("❌ A extração não trouxe nenhuma planilha; não há consolidado para salvar.")
+            return None
 
     print("\n📊 Consolidando todas as planilhas em uma única tabela…")
     consolidado = pd.concat(tabelas, ignore_index=True)
@@ -92,18 +100,17 @@ def run():
     try:
         consolidado.to_excel(ARQUIVO_FINAL, index=False)
         print(f"✅ Arquivo único criado em: {ARQUIVO_FINAL}")
+        return ARQUIVO_FINAL
     except PermissionError:
         # Acontece quando o consolidado anterior está aberto no Excel
         alternativo = ARQUIVO_FINAL.with_name(f"Atrasadas_Consolidado_{pd.Timestamp.now():%Y%m%d_%H%M%S}.xlsx")
         consolidado.to_excel(alternativo, index=False)
         print(f"⚠️ {ARQUIVO_FINAL.name} está aberto no Excel. Salvo como: {alternativo}")
-
-    # ----------------------------------------------------
-    # FASE 1: TESTE COM 1 FORNECEDOR (cobra a partir do 4º dia útil após a Agenda)
-    # ----------------------------------------------------
-    print()
-    enviar_email(filtrar_fornecedor(consolidado, FORNECEDOR_TESTE), FORNECEDOR_TESTE)
+        return alternativo
 
 
 if __name__ == "__main__":
-    run()
+    # Reconsolida (extraindo antes, se 1_downloads estiver vazia) e segue para o disparo.
+    # Aceita os mesmos parâmetros do disparador: [AAAA-MM-DD] [--teste | --enviar]
+    import disparador
+    disparador.main(consolidar=True)

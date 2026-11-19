@@ -1,21 +1,26 @@
 # Automação de Agendamentos Atrasados
 
 Visão geral, instalação e uso: ver README.md. Fluxo: `extrator.py` (portal, Playwright) → `atrasadas.py`
-(consolida) → `teste_email.py` (filtra e envia pelo Outlook). Windows + Outlook + Python 3.11+, venv em `.venv`.
+(consolida) → `disparador.py` (filtra, cruza contatos e envia pelo Outlook, usando `teste_email.py`).
+Os três terminam em `disparador.main()` e completam a etapa que faltar (sem consolidado → consolida;
+sem downloads → extrai do portal). Imports entre eles são tardios (dentro da função) para evitar ciclo. Windows + Outlook + Python 3.11+, venv em `.venv`.
 
 ## Comandos
 
 ```powershell
 pip install -r requirements.txt; playwright install chromium   # setup (versões fixadas)
 .venv\Scripts\python -m py_compile extrator.py atrasadas.py teste_email.py regras.py config.py disparador.py   # checagem de sintaxe
-.venv\Scripts\python disparador.py            # fase 2 (todos os fornecedores): SIMULAÇÃO, seguro de rodar
+.venv\Scripts\python disparador.py            # SIMULAÇÃO (não envia); mas sem consolidado, extrai do portal
+.venv\Scripts\python disparador.py --teste    # envia todos os e-mails para o EMAIL_TESTE (assunto "[TESTE → contato]")
 ```
 
 - Não há suíte de testes. Para validar regras, chamar `regras.py` direto com `data_referencia` fixa
   (ex.: `dias_uteis_atraso(pd.Series(['16/11/2026']), pd.Timestamp('2026-11-20'))` → 3, pois 20/11 é feriado).
-- **Não rodar** `extrator.py`, `atrasadas.py`, `teste_email.py` nem `disparador.py --enviar` sem pedido explícito: enviam e-mail real
+- **Não rodar** `extrator.py`, `atrasadas.py`, `teste_email.py` nem `disparador.py --teste/--enviar` sem pedido explícito: enviam e-mail real
   (`mail.Send()`) e/ou logam no portal com a senha do `.env`.
-- Importar `teste_email` (ou `atrasadas`, que o importa) exige `EMAIL_REMETENTE`/`EMAIL_TESTE` no `.env`
+- Para testar o fluxo sem portal/Outlook: `unittest.mock.patch` em `extrator.baixar_planilhas`,
+  `disparador.enviar_email` e nas pastas (`atrasadas.PASTA_DOWNLOADS`, `teste_email.PASTA_CONSOLIDADO`).
+- Importar `teste_email` (ou `disparador`, que o importa) exige `EMAIL_REMETENTE`/`EMAIL_TESTE` no `.env`
   (`SystemExit` no import). Para testes isolados, importar só `regras`.
 
 ## Regras de negócio (não alterar sem pedido)
@@ -39,6 +44,9 @@ pip install -r requirements.txt; playwright install chromium   # setup (versões
 
 ## Armadilhas
 
+- Pastas de saída só em `config.py` (`PASTA_DOWNLOADS`, `PASTA_CONSOLIDADO`, `PASTA_ENVIOS`, `PASTA_ERROS`), dentro de
+  `atrasadas/1_downloads`, `2_consolidado`, `3_envios` e `erros`. Não escrever caminhos à mão nos scripts nem salvar na raiz.
+- Log aberto no Excel → salva `Log_Envios_<data>.csv` à parte; nunca deixar o envio terminar sem registrar.
 - Consolidado aberto no Excel → `PermissionError`; o código salva cópia com data/hora e lê o mais recente
   (`Atrasadas_Consolidado*.xlsx`), ignorando arquivos `~$`.
 - Cruzamento nota × base de contatos (`disparador.py`): comparar só com `nome_chave()` (sem LTDA, BRASIL,
