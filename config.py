@@ -10,6 +10,16 @@ from dotenv import load_dotenv
 PASTA_PROJETO = pathlib.Path(__file__).parent
 load_dotenv(PASTA_PROJETO / ".env")
 
+# Pastas de saída (fonte única dos caminhos), uma por etapa do fluxo. Nunca versionar (LGPD).
+PASTA_DADOS = PASTA_PROJETO / "atrasadas"
+PASTA_DOWNLOADS = PASTA_DADOS / "1_downloads"      # planilhas brutas de cada filial
+PASTA_CONSOLIDADO = PASTA_DADOS / "2_consolidado"  # Atrasadas_Consolidado.xlsx
+PASTA_ENVIOS = PASTA_DADOS / "3_envios"            # Log_Envios.csv e Fornecedores_Pendentes.xlsx
+PASTA_ERROS = PASTA_DADOS / "erros"                # prints das filiais com problema
+PASTA_CONTATOS = PASTA_PROJETO / "base fornecedores"
+for _pasta in (PASTA_DOWNLOADS, PASTA_CONSOLIDADO, PASTA_ENVIOS, PASTA_ERROS):
+    _pasta.mkdir(parents=True, exist_ok=True)
+
 
 def obrigatorio(nome: str) -> str:
     valor = os.getenv(nome, "").strip()

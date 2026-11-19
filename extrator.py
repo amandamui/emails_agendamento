@@ -1,15 +1,12 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 import os, time
 
-import atrasadas  # consolidação, tratamento e envio do e-mail
-from atrasadas import DOWNLOADS_DIR
-from config import obrigatorio, IGNORAR_CERTIFICADO
+from config import IGNORAR_CERTIFICADO, PASTA_DOWNLOADS, PASTA_ERROS, obrigatorio
 
 # CONFIGURAÇÕES (credenciais vêm do arquivo .env — nunca escreva senhas no código)
 EMAIL = obrigatorio("BRA_EMAIL")
 SENHA = obrigatorio("BRA_SENHA")
 URL_BASE = "https://app.brautoparts.com.br"
-(DOWNLOADS_DIR / "erros").mkdir(exist_ok=True, parents=True)
 
 FILIAIS = [
     "Araguaina", "Bauru", "Belem", "Belem P", "Belo Horizonte", "Blumenau", "Brasilia",
@@ -50,7 +47,8 @@ def acessar_portal_e_logar(page):
         raise RuntimeError("❌ Falha no login. Verifique as credenciais.")
     print("✅ Login realizado!")
 
-def run():
+def baixar_planilhas() -> int:
+    """Etapa 1: login no portal e download da planilha de cada filial em 1_downloads. Retorna quantas baixou."""
     with sync_playwright() as p:
         browser = p.chromium.launch(channel="chrome", headless=False, slow_mo=150)
         context = browser.new_context(accept_downloads=True, ignore_https_errors=IGNORAR_CERTIFICADO)
@@ -70,7 +68,7 @@ def run():
         aba_atrasadas.click()
 
         # Remove as planilhas da execução anterior para não duplicar dados no consolidado
-        for antigo in DOWNLOADS_DIR.glob("Agendamento*.xlsx"):
+        for antigo in PASTA_DOWNLOADS.glob("Agendamento*.xlsx"):
             antigo.unlink()
 
         botao_exportar = page.locator('button[data-bs-original-title="Exportar para o Excel"]').first
@@ -102,13 +100,13 @@ def run():
             if msg_vazio.is_visible() or not botao_exportar.is_visible():
                 print("   ⚪ Sem registros (botão de exportar não apareceu)")
                 sem_dados.append(filial)
-                page.screenshot(path=str(DOWNLOADS_DIR / "erros" / f"{filial}.png"))
+                page.screenshot(path=str(PASTA_ERROS / f"{filial}.png"))
                 continue
 
             try:
                 with page.expect_download(timeout=40000) as download_info:
                     botao_exportar.click(timeout=15000)
-                destino = DOWNLOADS_DIR / f"Agendamento_{filial}.xlsx"
+                destino = PASTA_DOWNLOADS / f"Agendamento_{filial}.xlsx"
                 download_info.value.save_as(str(destino))
                 baixadas.append(filial)
             except Exception as e:
@@ -119,12 +117,14 @@ def run():
 
     print(f"\n📋 Resumo: {len(baixadas)} baixadas | {len(sem_dados)} sem registros | {len(falhas)} com erro")
     if sem_dados:
-        print(f"   Sem registros: {', '.join(sem_dados)}  (prints em {DOWNLOADS_DIR / 'erros'})")
+        print(f"   Sem registros: {', '.join(sem_dados)}  (prints em {PASTA_ERROS})")
     if falhas:
         print(f"   Com erro: {', '.join(falhas)}")
+    return len(baixadas)
 
-    # Etapas 2 e 3: consolidar/tratar a planilha e enviar o e-mail (atrasadas.py)
-    atrasadas.run()
 
 if __name__ == "__main__":
-    run()
+    # Fluxo completo: extrai do portal, consolida e segue para o disparo.
+    # Aceita os mesmos parâmetros do disparador: [AAAA-MM-DD] [--teste | --enviar]
+    import disparador
+    disparador.main(extrair=True)
