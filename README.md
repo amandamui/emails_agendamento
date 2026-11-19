@@ -91,7 +91,7 @@ O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` no `.env` (padr�
 - `atrasadas/2_consolidado/Atrasadas_Consolidado.xlsx` — planilha final tratada
 - `atrasadas/3_envios/Log_Envios.csv` — histórico de envios do `disparador.py` (acumulado)
 - `atrasadas/3_envios/Fornecedores_Pendentes.xlsx` — notas a cobrar sem e-mail cadastrado
-- `atrasadas/erros/<Filial>.png` — print da tela das filiais em que o botão de exportar não apareceu
+- `atrasadas/4_erros/<Filial>.png` — print da tela das filiais em que o botão de exportar não apareceu
 
 ## Problemas comuns
 
@@ -99,7 +99,7 @@ O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` no `.env` (padr�
 |---|---|
 | `PermissionError ... Atrasadas_Consolidado.xlsx` | A planilha está aberta no Excel. Feche-a. O robô salva uma cópia com data/hora no nome e o `teste_email.py` lê o arquivo mais recente. |
 | `Variável 'BRA_SENHA' não configurada` | Falta o arquivo `.env` ou a variável dentro dele. |
-| `⚪ Sem registros` em uma filial | A filial não tem notas atrasadas, ou a página demorou. Confira o print em `atrasadas/erros/`. |
+| `⚪ Sem registros` em uma filial | A filial não tem notas atrasadas, ou a página demorou. Confira o print em `atrasadas/4_erros/`. |
 | Erro ao enviar e-mail | O Outlook precisa estar aberto e configurado na máquina. |
 | `Import "playwright" could not be resolved` no VS Code | Selecione o interpretador do `.venv` (`Ctrl+Shift+P` → *Python: Select Interpreter*). |
 
