@@ -22,6 +22,7 @@ atrasadas.py ─► 2. Consolida e trata a planilha
 | `extrator.py` | Fluxo completo: login, download por filial e, no final, chama o `atrasadas.py` |
 | `atrasadas.py` | Consolida as planilhas baixadas, trata as colunas e chama o envio do e-mail (fase 1: um fornecedor) |
 | `teste_email.py` | **Fonte única do e-mail**: layout, regra das 72h e envio. Rodando direto, envia a partir do consolidado já gerado, sem abrir o portal |
+| `disparador.py` | **Fase 2**: cruza o consolidado com `base fornecedores/` e cobra todos os fornecedores com e-mail. Sem `--enviar` só simula; notas sem contato vão para `atrasadas/Fornecedores_Pendentes.xlsx` e os envios para `atrasadas/Log_Envios.csv` |
 | `regras.py` | **Regras de negócio**: dias exibidos em dias corridos desde a Emissão; só o mínimo para cobrar usa dias úteis após a Agenda (4º dia útil, sem fins de semana e feriados nacionais), alerta crítico (mais de 60 dias corridos desde a Emissão) |
 | `config.py` | Lê as configurações e senhas do arquivo `.env` |
 | `.env.example` | Modelo do `.env` (sem valores reais) |
