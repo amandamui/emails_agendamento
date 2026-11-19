@@ -45,7 +45,7 @@ pip install -r requirements.txt; playwright install chromium   # setup (versões
 ## Armadilhas
 
 - Pastas de saída só em `config.py` (`PASTA_DOWNLOADS`, `PASTA_CONSOLIDADO`, `PASTA_ENVIOS`, `PASTA_ERROS`), dentro de
-  `atrasadas/1_downloads`, `2_consolidado`, `3_envios` e `erros`. Não escrever caminhos à mão nos scripts nem salvar na raiz.
+  `atrasadas/1_downloads`, `2_consolidado`, `3_envios` e `4_erros`. Não escrever caminhos à mão nos scripts nem salvar na raiz.
 - Log aberto no Excel → salva `Log_Envios_<data>.csv` à parte; nunca deixar o envio terminar sem registrar.
 - Consolidado aberto no Excel → `PermissionError`; o código salva cópia com data/hora e lê o mais recente
   (`Atrasadas_Consolidado*.xlsx`), ignorando arquivos `~$`.
