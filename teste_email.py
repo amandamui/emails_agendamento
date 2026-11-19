@@ -257,7 +257,13 @@ def filtrar_fornecedor(consolidado: pd.DataFrame, fornecedor: str,
     print(f"🔍 Filtrando fornecedor: {fornecedor}")
     df = consolidado[
         consolidado["Razão Social"].astype(str).str.contains(fornecedor, case=False, na=False, regex=False)
-    ].copy()
+    ]
+    return notas_a_cobrar(df, data_referencia)
+
+
+def notas_a_cobrar(df: pd.DataFrame, data_referencia: pd.Timestamp | None = None) -> pd.DataFrame:
+    """Recalcula 'Dias'/'Crítico' na data de referência e mantém só as notas a partir do 4º dia útil."""
+    df = df.copy()
     df["Dias"] = dias_corridos_desde(df["Emissão"], data_referencia)  # exibido no e-mail (HOJE() - Emissão)
     df["Crítico"] = e_critico(df["Dias"])
     cobrar = deve_cobrar(dias_uteis_atraso(df["Agenda"], data_referencia))  # única regra em dias úteis
