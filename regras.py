@@ -70,7 +70,7 @@ def dias_uteis_atraso(agenda: pd.Series, data_referencia: pd.Timestamp | None = 
         return resultado
 
     anos = range(min(datas[validas].min().year, ref.year), ref.year + 1)
-    inicio = (datas[validas] + pd.Timedelta(days=1)).values.astype("datetime64[D]")
+    inicio = (datas[validas] + pd.Timedelta(days=1)).to_numpy(dtype="datetime64[D]")
     fim = np.datetime64(ref + pd.Timedelta(days=1), "D")
     contagem = np.busday_count(inicio, fim, holidays=_feriados(anos))
     resultado[validas] = np.maximum(contagem, 0)
