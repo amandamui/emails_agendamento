@@ -8,11 +8,9 @@ Uso:
 """
 import re
 import sys
-import unicodedata
 from datetime import datetime
 
 import pandas as pd
-from rapidfuzz import fuzz, process
 
 from config import PASTA_CONTATOS, PASTA_ENVIOS
 from teste_email import EMAIL_DESTINATARIO, enviar_email, ler_excel, localizar_consolidado, notas_a_cobrar
@@ -24,25 +22,23 @@ ARQUIVO_CONTATOS = PASTA_CONTATOS / "baseagdteste.xlsx"
 ARQUIVO_PENDENTES = PASTA_ENVIOS / "Fornecedores_Pendentes.xlsx"
 ARQUIVO_LOG = PASTA_ENVIOS / "Log_Envios.csv"
 
-# Nota mínima (0-100) para considerar que a Razão Social da nota é o fornecedor da base.
-# Comparação feita SEM os termos genéricos abaixo; abaixo da nota, a nota vai para os pendentes.
-SIMILARIDADE_MINIMA = 90
-TERMOS_GENERICOS = {
-    "LTDA", "EIRELI", "SA", "S", "A", "ME", "EPP", "IND", "INDS", "INDUSTRIA", "COM", "COMERCIO",
-    "DO", "DA", "DE", "DOS", "DAS", "E", "BRASIL", "BRAZIL", "AUTOMOTIVE", "AUTOMOTIVA", "AUTOMOTIVAS",
-    "AUTOM", "PROD", "PRODUTOS", "PECAS", "AUTOPECAS",
-}
+COLUNA_CNPJ_NOTA = "Emitente"            # CNPJ do fornecedor na planilha do portal
+COLUNA_CNPJ_BASE = "CNPJ FORNECEDOR"
+COLUNAS_CRUZAMENTO = ["Fornecedor Base", "EMAIL DE CONTATO", "Cruzamento"]  # auxiliares, fora do e-mail
 
 # =========================================================
-# 🔗 CRUZAMENTO NOTAS × CONTATOS
+# 🔗 CRUZAMENTO NOTAS × CONTATOS (pelo CNPJ)
 # =========================================================
 
 
-def nome_chave(razao_social) -> str:
-    """'R C Borrachas Automotivas Ltda.' -> 'RC BORRACHAS' (sem acento, pontuação e termos genéricos)."""
-    texto = unicodedata.normalize("NFKD", str(razao_social)).encode("ascii", "ignore").decode().upper()
-    texto = re.sub(r"\b([A-Z]) (?=[A-Z]\b)", r"\1", texto)  # junta siglas soltas: "R C" -> "RC"
-    return " ".join(t for t in re.findall(r"[A-Z0-9]+", texto) if t not in TERMOS_GENERICOS)
+def cnpj_digitos(valor) -> str | None:
+    """'02.162.259/0003-26', 2162259000326 ou '2162259000326' -> '02162259000326' (14 dígitos)."""
+    if pd.isna(valor):
+        return None
+    if isinstance(valor, float):  # Excel pode ler o CNPJ como número
+        valor = int(valor)
+    digitos = re.sub(r"\D", "", str(valor))
+    return digitos.zfill(14) if 0 < len(digitos) <= 14 else None
 
 
 def carregar_contatos() -> pd.DataFrame | None:
@@ -51,33 +47,57 @@ def carregar_contatos() -> pd.DataFrame | None:
         return None
     print("📂 Lendo base de fornecedores...")
     contatos = ler_excel(ARQUIVO_CONTATOS).dropna(subset=["RAZÃO SOCIAL", "EMAIL DE CONTATO"])
-    contatos["Chave"] = contatos["RAZÃO SOCIAL"].map(nome_chave)
-    # Junta todos os e-mails do fornecedor (vários na mesma célula e/ou em várias linhas), sem repetir.
-    # Outlook separa destinatários com ';'.
+    contatos["CNPJ"] = contatos[COLUNA_CNPJ_BASE].map(cnpj_digitos)
+    sem_cnpj = contatos["CNPJ"].isna()
+    if sem_cnpj.any():
+        print(f"⚠️ {sem_cnpj.sum()} linha(s) da base sem CNPJ válido (ignoradas): "
+              + ", ".join(contatos.loc[sem_cnpj, "RAZÃO SOCIAL"].astype(str)))
+    contatos = contatos[~sem_cnpj].copy()
+    contatos["Raiz"] = contatos["CNPJ"].str[:8]
+    contatos["Linha Excel"] = contatos.index + 2  # cabeçalho na linha 1
+    contatos["Nome"] = contatos["RAZÃO SOCIAL"].astype(str).str.strip().str.upper()
+    return contatos
+
+
+def _agrupar(contatos: pd.DataFrame, chave: str) -> pd.DataFrame:
+    """Um registro por chave (CNPJ ou raiz) com TODOS os e-mails juntos (células e linhas), sem repetir.
+    Outlook separa destinatários com ';'. Chave com Razões Sociais diferentes na base é AMBÍGUA
+    (ex.: CNPJ de um fornecedor copiado na linha de outro) e fica de fora: a nota vai para os pendentes."""
     def juntar_emails(celulas: pd.Series) -> str:
         emails = (e.strip().lower() for c in celulas.astype(str) for e in re.split(r"[,;\s]+", c))
         return ";".join(dict.fromkeys(e for e in emails if "@" in e))
 
-    return contatos.groupby("Chave", as_index=False).agg(
-        {"RAZÃO SOCIAL": "first", "EMAIL DE CONTATO": juntar_emails})
+    grupos = contatos.groupby(chave).agg({"RAZÃO SOCIAL": "first", "EMAIL DE CONTATO": juntar_emails,
+                                          "Nome": "nunique", "Linha Excel": list})
+    grupos["Ambíguo"] = grupos["Nome"] > 1
+    return grupos
 
 
 def cruzar(notas: pd.DataFrame, contatos: pd.DataFrame) -> pd.DataFrame:
-    """Adiciona 'Fornecedor Base', 'EMAIL DE CONTATO' e 'Similaridade' (match feito uma vez por fornecedor)."""
-    base = contatos.set_index("Chave")
-    chaves_base = list(base.index)
-    chave_por_razao, nota_por_razao = {}, {}
-    for razao in notas["Razão Social"].dropna().unique():
-        achado = process.extractOne(nome_chave(razao), chaves_base, scorer=fuzz.token_sort_ratio,
-                                    score_cutoff=SIMILARIDADE_MINIMA)
-        if achado:
-            chave_por_razao[razao], nota_por_razao[razao] = achado[0], round(achado[1], 1)
-
+    """Adiciona 'Fornecedor Base', 'EMAIL DE CONTATO' e 'Cruzamento' pelo CNPJ do Emitente:
+    1º CNPJ exato; 2º raiz (8 primeiros dígitos = mesma empresa, outra filial).
+    Sem CNPJ na base, ou CNPJ/raiz ambíguo (Razões Sociais diferentes) → pendente."""
+    por_cnpj, por_raiz = _agrupar(contatos, "CNPJ"), _agrupar(contatos, "Raiz")
     notas = notas.copy()
-    chave = notas["Razão Social"].map(chave_por_razao)
-    notas["Fornecedor Base"] = chave.map(base["RAZÃO SOCIAL"])
-    notas["EMAIL DE CONTATO"] = chave.map(base["EMAIL DE CONTATO"])
-    notas["Similaridade"] = notas["Razão Social"].map(nota_por_razao)
+    cnpj = notas[COLUNA_CNPJ_NOTA].map(cnpj_digitos)
+    raiz = cnpj.str[:8]
+    na_base = cnpj.isin(por_cnpj.index)
+    exato = na_base & ~cnpj.map(por_cnpj["Ambíguo"]).fillna(False).astype(bool)
+    pela_raiz = ~na_base & raiz.isin(por_raiz.index) & ~raiz.map(por_raiz["Ambíguo"]).fillna(False).astype(bool)
+
+    # Avisa só dos conflitos que de fato seguraram notas
+    conflitos = pd.concat([por_cnpj.loc[por_cnpj.index.isin(cnpj[na_base & ~exato])],
+                           por_raiz.loc[por_raiz.index.isin(raiz[~na_base & ~pela_raiz]) & por_raiz["Ambíguo"]]])
+    for chave, g in conflitos.iterrows():
+        print(f"⚠️ CNPJ {chave} aparece na base com Razões Sociais diferentes (linhas {g['Linha Excel']}); "
+              "notas ficaram pendentes até corrigir a base.")
+
+    for coluna, destino in (("RAZÃO SOCIAL", "Fornecedor Base"), ("EMAIL DE CONTATO", "EMAIL DE CONTATO")):
+        valor = cnpj.map(por_cnpj[coluna]).where(exato, raiz.map(por_raiz[coluna]))
+        notas[destino] = valor.where(exato | pela_raiz)  # o resto fica vazio → pendente
+    notas["Cruzamento"] = None
+    notas.loc[exato, "Cruzamento"] = "CNPJ"
+    notas.loc[pela_raiz, "Cruzamento"] = "Raiz do CNPJ"
     return notas
 
 
@@ -89,13 +109,18 @@ def cruzar(notas: pd.DataFrame, contatos: pd.DataFrame) -> pd.DataFrame:
 def disparar(df_enviar: pd.DataFrame, modo: str) -> list[dict]:
     """modo: 'simulacao' (só lista), 'teste' (tudo para o EMAIL_TESTE) ou 'enviar' (fornecedores)."""
     logs = []
-    for (fornecedor, email), grupo in df_enviar.groupby(["Fornecedor Base", "EMAIL DE CONTATO"]):
-        print(f"   ✉️ {fornecedor} ({email}) - {len(grupo)} notas")
+    # Nome exibido = Razão Social do portal (a mesma da tabela do e-mail); a da base pode vir colada,
+    # abreviada ou com anotações ("MARELLICOFAPDOBRASILLTDA", "... (WAHLER)").
+    grupos = sorted(((g["Razão Social"].mode().iloc[0], email, g)
+                     for (_, email), g in df_enviar.groupby(["Fornecedor Base", "EMAIL DE CONTATO"])),
+                    key=lambda item: item[0].upper())
+    for fornecedor, email, grupo in grupos:
+        print(f"   ✉️   {fornecedor} ({email}) - {len(grupo)} notas")
         if modo == "simulacao":
             continue
         teste = modo == "teste"
         destino = EMAIL_DESTINATARIO if teste else str(email)
-        ok = enviar_email(grupo.drop(columns=["Fornecedor Base", "EMAIL DE CONTATO", "Similaridade"]),
+        ok = enviar_email(grupo.drop(columns=COLUNAS_CRUZAMENTO),
                           str(fornecedor), destinatario=destino,
                           prefixo_assunto=f"[TESTE → {email}] " if teste else "")
         logs.append({
@@ -113,10 +138,9 @@ def salvar_relatorios(df_pendentes: pd.DataFrame, logs: list[dict]):
         print("\n✅ Todas as notas a cobrar têm e-mail cadastrado.")
     else:
         try:
-            df_pendentes.drop(columns=["Fornecedor Base", "EMAIL DE CONTATO", "Similaridade"]).to_excel(
-                ARQUIVO_PENDENTES, index=False)
-            print(f"\n⚠️ {len(df_pendentes)} notas de {df_pendentes['Razão Social'].nunique()} fornecedores "
-                  f"sem e-mail cadastrado. Lista em: {ARQUIVO_PENDENTES.name}")
+            df_pendentes.drop(columns=COLUNAS_CRUZAMENTO).to_excel(ARQUIVO_PENDENTES, index=False)
+            print(f"\n⚠️ {len(df_pendentes)} notas de {df_pendentes[COLUNA_CNPJ_NOTA].nunique()} CNPJs "
+                  f"sem cadastro (ou com conflito) na base (CNPJ na coluna '{COLUNA_CNPJ_NOTA}'). Lista em: {ARQUIVO_PENDENTES.name}")
         except PermissionError:
             print(f"\n❌ Feche o {ARQUIVO_PENDENTES.name} no Excel para salvar os pendentes.")
 
@@ -164,7 +188,16 @@ def run(data_referencia: pd.Timestamp | None = None, modo: str = "simulacao",
         return
 
     print(f"📂 Lendo notas: {arquivo.name}")
-    notas = notas_a_cobrar(ler_excel(arquivo), data_referencia)
+    consolidado = ler_excel(arquivo)
+    if COLUNA_CNPJ_NOTA not in consolidado.columns:
+        # Consolidado gerado antes do cruzamento por CNPJ: refaz a partir de 1_downloads.
+        print(f"⚠️ Consolidado sem a coluna '{COLUNA_CNPJ_NOTA}' (CNPJ); reconsolidando…\n")
+        arquivo = preparar_consolidado(consolidar=True)
+        consolidado = ler_excel(arquivo) if arquivo else pd.DataFrame()
+        if COLUNA_CNPJ_NOTA not in consolidado.columns:
+            print(f"❌ As planilhas do portal não trouxeram a coluna '{COLUNA_CNPJ_NOTA}'; nada a disparar.")
+            return
+    notas = notas_a_cobrar(consolidado, data_referencia)
     if notas.empty:
         print("✅ Nenhuma nota atende aos critérios de cobrança.")
         return

@@ -49,9 +49,14 @@ pip install -r requirements.txt; playwright install chromium   # setup (versões
 - Log aberto no Excel → salva `Log_Envios_<data>.csv` à parte; nunca deixar o envio terminar sem registrar.
 - Consolidado aberto no Excel → `PermissionError`; o código salva cópia com data/hora e lê o mais recente
   (`Atrasadas_Consolidado*.xlsx`), ignorando arquivos `~$`.
-- Cruzamento nota × base de contatos (`disparador.py`): comparar só com `nome_chave()` (sem LTDA, BRASIL,
-  AUTOMOTIVE…) e `token_sort_ratio` ≥ 90. `token_set_ratio` no nome cheio mandava HELLA/BORGWARNER para o
-  e-mail da ZF. Na dúvida, a nota vai para `Fornecedores_Pendentes.xlsx`, nunca para outro fornecedor.
+- Cruzamento nota × base de contatos (`disparador.py`): **só pelo CNPJ**, nunca pelo nome. Coluna `Emitente`
+  do portal (mantida pelo `atrasadas.py`) × `CNPJ FORNECEDOR` da base, comparando só dígitos com `zfill(14)`
+  (a base mistura formatos e perde o zero à esquerda). 1º CNPJ exato, 2º raiz (8 dígitos = outra filial).
+  Nome falhava (portal corta em ~40 caracteres, base abrevia/renomeia) e fuzzy já mandou HELLA/BORGWARNER
+  para a ZF. CNPJ/raiz com Razões Sociais diferentes na base = ambíguo → pendente com aviso das linhas.
+  Na dúvida, a nota vai para `Fornecedores_Pendentes.xlsx`, nunca para outro fornecedor.
+  A base só fornece o e-mail: o nome no assunto/corpo é a Razão Social do portal (a da base vem colada/anotada).
+- Consolidado antigo sem `Emitente` → o disparador reconsolida de `1_downloads` sozinho.
 - Base de contatos (hoje `baseagdteste.xlsx`, só teste): vários e-mails por fornecedor, na mesma célula ou em
   linhas repetidas, são juntados em um único e-mail com todos no "Para" (não usar `drop_duplicates`).
 - "Faltam notas do fornecedor no e-mail" costuma ser a regra do 4º dia útil (Agenda recente), não bug:
