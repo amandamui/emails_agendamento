@@ -16,7 +16,8 @@ atrasadas.py ─► 2. Consolida e trata a planilha
      │
      ▼
 disparador.py ► 3. Filtra as notas a partir do 4º dia útil após a Agenda, cruza com a base
-                   de contatos e dispara um e-mail por fornecedor (layout do teste_email.py)
+                   de contatos pelo CNPJ (Emitente) e dispara um e-mail por fornecedor
+                   (layout do teste_email.py)
 ```
 
 Qualquer um dos três scripts termina no disparo e completa sozinho a etapa que faltar:
@@ -90,7 +91,9 @@ O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` no `.env` (padr�
 - `atrasadas/1_downloads/Agendamento_<Filial>.xlsx` — planilha bruta de cada filial (apagadas a cada nova execução)
 - `atrasadas/2_consolidado/Atrasadas_Consolidado.xlsx` — planilha final tratada
 - `atrasadas/3_envios/Log_Envios.csv` — histórico de envios do `disparador.py` (acumulado)
-- `atrasadas/3_envios/Fornecedores_Pendentes.xlsx` — notas a cobrar sem e-mail cadastrado
+- `atrasadas/3_envios/Fornecedores_Pendentes.xlsx` — notas a cobrar cujo CNPJ (coluna `Emitente`) não está
+  na base, ou está com Razões Sociais diferentes (conflito avisado no console com as linhas da base).
+  O cruzamento é só pelo CNPJ: CNPJ exato e, se não houver, a raiz (8 primeiros dígitos, outra filial).
 - `atrasadas/4_erros/<Filial>.png` — print da tela das filiais em que o botão de exportar não apareceu
 
 ## Problemas comuns

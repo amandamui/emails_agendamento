@@ -71,9 +71,10 @@ def consolidar(extrair_se_vazio: bool = True) -> pathlib.Path | None:
     # ----------------------------------------------------
     print("🧹 Tratando a planilha base...")
 
-    # 1. Excluir colunas que não vão no e-mail
+    # 1. Excluir colunas que não vão no e-mail.
+    #    "Emitente" (CNPJ do fornecedor) é mantida: o disparador cruza com a base de contatos por ela.
     colunas_excluir = [
-        "Empresa", "CNPJ Filial", "Emitente", "Valor (R$)", "Protocolo",
+        "Empresa", "CNPJ Filial", "Valor (R$)", "Protocolo",
         "Vencimento", "Agendou", "Período", "Entrega",  # "Cancelamento" (data) é mantida: vai no e-mail
         # O portal exporta sem acento ("Usuario"); mantém as duas grafias
         "Usuário Agendamento", "Usuario Agendamento",
