@@ -20,12 +20,17 @@ disparador.py ► 3. Filtra as notas a partir do 4º dia útil após a Agenda, c
                    (layout do teste_email.py)
 ```
 
-Qualquer um dos três scripts termina no disparo e completa sozinho a etapa que faltar:
-sem consolidado, consolida; sem planilhas baixadas, extrai do portal antes.
+Qualquer um dos três scripts termina no disparo e completa sozinho a etapa que faltar.
+
+**Cache:** se `atrasadas/1_downloads` já tem planilhas, elas são reaproveitadas (o portal não é aberto), não
+importa de quando sejam; a data do download aparece na tela. Se o consolidado for mais novo que as planilhas (já
+foram lidas), ele também é reaproveitado; senão, é refeito. Para baixar de novo do portal, use `--atualizar`.
+O extrator grava `_extracao_concluida.txt` ao terminar todas as filiais; sem ele, o disparador avisa que a
+última extração foi interrompida e podem faltar filiais.
 
 | Arquivo | Função |
 |---|---|
-| `extrator.py` | Sempre extrai de novo do portal, consolida e dispara |
+| `extrator.py` | Extrai do portal (se `1_downloads` estiver vazia), consolida e dispara |
 | `atrasadas.py` | Reconsolida as planilhas de `1_downloads` (extrai antes, se estiver vazia) e dispara |
 | `teste_email.py` | **Fonte única do e-mail**: layout, regra das 72h e envio. Rodando direto, envia a partir do consolidado já gerado, sem abrir o portal |
 | `disparador.py` | **Fase 2**: cruza o consolidado com `base fornecedores/` e cobra todos os fornecedores com e-mail. Sem parâmetro só simula; `--teste` manda tudo para o `EMAIL_TESTE`; `--enviar` manda para os fornecedores. Notas sem contato vão para `atrasadas/3_envios/Fornecedores_Pendentes.xlsx` e os envios para `atrasadas/3_envios/Log_Envios.csv` |
@@ -68,12 +73,14 @@ Preencha o `.env`:
 ## Uso
 
 ```powershell
-# Os três aceitam: [AAAA-MM-DD] [--teste | --enviar]
+# Os três aceitam: [AAAA-MM-DD] [--teste | --enviar] [--atualizar]
 #   sem parâmetro → SIMULAÇÃO (só lista quem receberia, não envia nada)
 #   --teste       → envia todos os e-mails para o EMAIL_TESTE do .env
 #   --enviar      → envia para os fornecedores
+#   --atualizar   → ignora as planilhas já baixadas e baixa tudo de novo do portal
 
-python extrator.py --teste       # baixa tudo de novo, consolida e testa no seu e-mail
+python extrator.py --teste       # usa as planilhas já baixadas (ou baixa, se não houver) e testa no seu e-mail
+python extrator.py --atualizar   # baixa tudo de novo do portal
 python atrasadas.py              # reconsolida o que já foi baixado e simula
 python disparador.py             # usa o consolidado existente (gera o que faltar) e simula
 python disparador.py 2026-11-24  # simula o envio de outra data (ex.: a próxima terça)
@@ -88,7 +95,7 @@ O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` no `.env` (padr�
 
 ### Saídas
 
-- `atrasadas/1_downloads/Agendamento_<Filial>.xlsx` — planilha bruta de cada filial (apagadas a cada nova execução)
+- `atrasadas/1_downloads/Agendamento_<Filial>.xlsx` — planilha bruta de cada filial (apagadas a cada nova extração); `_extracao_concluida.txt` marca que a última extração terminou
 - `atrasadas/2_consolidado/Atrasadas_Consolidado.xlsx` — planilha final tratada
 - `atrasadas/3_envios/Log_Envios.csv` — histórico de envios do `disparador.py` (acumulado)
 - `atrasadas/3_envios/Fornecedores_Pendentes.xlsx` — notas a cobrar cujo CNPJ (coluna `Emitente`) não está

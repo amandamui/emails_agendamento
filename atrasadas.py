@@ -2,7 +2,7 @@ import pathlib
 
 import pandas as pd
 
-from config import PASTA_CONSOLIDADO, PASTA_DOWNLOADS
+from config import MARCADOR_EXTRACAO, PASTA_CONSOLIDADO, PASTA_DOWNLOADS
 from regras import dias_corridos_desde
 
 # =========================================================
@@ -20,16 +20,20 @@ ARQUIVO_FINAL = PASTA_CONSOLIDADO / "Atrasadas_Consolidado.xlsx"
 # =========================================================
 
 
-def carregar_tabelas() -> list[pd.DataFrame]:
-    """Lê todas as planilhas baixadas na pasta PASTA_DOWNLOADS (exceto o consolidado)."""
-    if not PASTA_DOWNLOADS.exists():
-        print(f"⚠️ Pasta não encontrada: {PASTA_DOWNLOADS}")
-        return []
+def planilhas_baixadas() -> list[pathlib.Path]:
+    """Planilhas de 1_downloads (o cache da extração), sem os temporários do Excel (~$)."""
+    return sorted(p for p in PASTA_DOWNLOADS.glob("Agendamento*.xls*") if not p.name.startswith("~$"))
 
+
+def extracao_interrompida() -> bool:
+    """Há planilhas, mas o extrator não chegou ao fim (marcador ausente): podem faltar filiais."""
+    return bool(planilhas_baixadas()) and not MARCADOR_EXTRACAO.exists()
+
+
+def carregar_tabelas() -> list[pd.DataFrame]:
+    """Lê todas as planilhas baixadas na pasta PASTA_DOWNLOADS."""
     tabelas = []
-    for arquivo in sorted(PASTA_DOWNLOADS.glob("*.xls*")):
-        if arquivo.name.startswith("Atrasadas_Consolidado") or arquivo.name.startswith("~$"):
-            continue  # ignora o próprio consolidado e arquivos temporários do Excel
+    for arquivo in planilhas_baixadas():
         try:
             tabelas.append(pd.read_excel(arquivo))
             print(f"   📄 Lido: {arquivo.name}")
@@ -43,25 +47,16 @@ def carregar_tabelas() -> list[pd.DataFrame]:
 # =========================================================
 
 
-def consolidar(extrair_se_vazio: bool = True) -> pathlib.Path | None:
-    """Consolida as planilhas de 1_downloads; se não houver nenhuma, extrai antes do portal.
+def consolidar() -> pathlib.Path | None:
+    """Consolida as planilhas de 1_downloads (quem decide se extrai antes é o disparador).
 
     Retorna o caminho do consolidado salvo (ou None se não houver dados).
     """
     print(f"📂 Lendo planilhas em: {PASTA_DOWNLOADS}")
     tabelas = carregar_tabelas()
-
-    if not tabelas and not extrair_se_vazio:
+    if not tabelas:
         print("❌ Nenhuma planilha baixada; não há consolidado para salvar.")
         return None
-    if not tabelas:
-        print("⚠️ Nenhuma planilha baixada; iniciando a extração no portal…\n")
-        import extrator  # import tardio: só exige BRA_EMAIL/BRA_SENHA quando precisa extrair
-        extrator.baixar_planilhas()
-        tabelas = carregar_tabelas()
-        if not tabelas:
-            print("❌ A extração não trouxe nenhuma planilha; não há consolidado para salvar.")
-            return None
 
     print("\n📊 Consolidando todas as planilhas em uma única tabela…")
     consolidado = pd.concat(tabelas, ignore_index=True)
@@ -112,6 +107,6 @@ def consolidar(extrair_se_vazio: bool = True) -> pathlib.Path | None:
 
 if __name__ == "__main__":
     # Reconsolida (extraindo antes, se 1_downloads estiver vazia) e segue para o disparo.
-    # Aceita os mesmos parâmetros do disparador: [AAAA-MM-DD] [--teste | --enviar]
+    # Aceita os mesmos parâmetros do disparador: [AAAA-MM-DD] [--teste | --enviar] [--atualizar]
     import disparador
     disparador.main(consolidar=True)
