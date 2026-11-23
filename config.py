@@ -17,6 +17,8 @@ PASTA_CONSOLIDADO = PASTA_DADOS / "2_consolidado"  # Atrasadas_Consolidado.xlsx
 PASTA_ENVIOS = PASTA_DADOS / "3_envios"            # Log_Envios.csv e Fornecedores_Pendentes.xlsx
 PASTA_ERROS = PASTA_DADOS / "4_erros"              # prints das filiais com problema
 PASTA_CONTATOS = PASTA_PROJETO / "base fornecedores"
+# Gravado pelo extrator ao terminar todas as filiais; sem ele, a pasta 1_downloads pode estar incompleta.
+MARCADOR_EXTRACAO = PASTA_DOWNLOADS / "_extracao_concluida.txt"
 for _pasta in (PASTA_DOWNLOADS, PASTA_CONSOLIDADO, PASTA_ENVIOS, PASTA_ERROS):
     _pasta.mkdir(parents=True, exist_ok=True)
 

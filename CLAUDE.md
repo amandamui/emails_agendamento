@@ -2,8 +2,10 @@
 
 Visão geral, instalação e uso: ver README.md. Fluxo: `extrator.py` (portal, Playwright) → `atrasadas.py`
 (consolida) → `disparador.py` (filtra, cruza contatos e envia pelo Outlook, usando `teste_email.py`).
-Os três terminam em `disparador.main()` e completam a etapa que faltar (sem consolidado → consolida;
-sem downloads → extrai do portal). Imports entre eles são tardios (dentro da função) para evitar ciclo. Windows + Outlook + Python 3.11+, venv em `.venv`.
+Os três terminam em `disparador.main()` (`preparar_consolidado`) e completam a etapa que faltar.
+Cache (sem limite de data, como sempre foi): portal só abre com `1_downloads` vazia ou `--atualizar`;
+consolidado mais novo que as planilhas é reaproveitado, senão reconsolida (ou via `atrasadas.py`).
+`MARCADOR_EXTRACAO` ausente com planilhas na pasta = extração interrompida → só avisa. Imports entre eles são tardios (dentro da função) para evitar ciclo. Windows + Outlook + Python 3.11+, venv em `.venv`.
 
 ## Comandos
 

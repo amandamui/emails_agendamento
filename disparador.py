@@ -163,23 +163,39 @@ def salvar_relatorios(df_pendentes: pd.DataFrame, logs: list[dict]):
 # =========================================================
 
 
-def preparar_consolidado(extrair: bool = False, consolidar: bool = False):
-    """Garante um consolidado: extrai do portal e/ou consolida o que faltar (imports tardios: sem ciclo)."""
-    if extrair:
+def preparar_consolidado(atualizar: bool = False, consolidar: bool = False):
+    """Cache: se 1_downloads já tem planilhas, reaproveita (sem limite de data); só abre o portal com a pasta
+    vazia ou com --atualizar. Se o consolidado é mais novo que as planilhas (já foram lidas), reaproveita também;
+    senão reconsolida. Imports tardios: sem ciclo."""
+    import atrasadas
+    planilhas = [] if atualizar else atrasadas.planilhas_baixadas()
+    if not planilhas:
+        print("🔄 Baixando de novo do portal (--atualizar)…\n" if atualizar
+              else "⚠️ Nenhuma planilha em 1_downloads; baixando do portal…\n")
         import extrator
         extrator.baixar_planilhas()
-    if extrair or consolidar or localizar_consolidado() is None:
-        if not (extrair or consolidar):
-            print("⚠️ Nenhum consolidado encontrado; consolidando as planilhas antes do disparo…\n")
-        import atrasadas
-        atrasadas.consolidar(extrair_se_vazio=not extrair)  # 1_downloads vazia → extrai do portal (uma vez só)
         print()
-    return localizar_consolidado()
+        planilhas = atrasadas.planilhas_baixadas()
+    else:
+        baixadas_em = datetime.fromtimestamp(max(p.stat().st_mtime for p in planilhas))
+        print(f"♻️ Usando as {len(planilhas)} planilhas já baixadas em {baixadas_em:%d/%m/%Y %H:%M} "
+              "(para baixar de novo: --atualizar)")
+        if atrasadas.extracao_interrompida():
+            print("⚠️ A última extração não terminou: podem faltar filiais. Se for o caso, rode com --atualizar.")
+
+    arquivo = localizar_consolidado()
+    if (consolidar or arquivo is None or not planilhas
+            or arquivo.stat().st_mtime < max(p.stat().st_mtime for p in planilhas)):
+        arquivo = atrasadas.consolidar()  # None se não houver planilhas: nunca cai num consolidado antigo
+        print()
+    else:
+        print(f"♻️ Consolidado em dia: {arquivo.name}\n")
+    return arquivo
 
 
 def run(data_referencia: pd.Timestamp | None = None, modo: str = "simulacao",
-        extrair: bool = False, consolidar: bool = False):
-    arquivo = preparar_consolidado(extrair, consolidar)
+        atualizar: bool = False, consolidar: bool = False):
+    arquivo = preparar_consolidado(atualizar, consolidar)
     if arquivo is None:
         print("❌ Não foi possível gerar o consolidado; nada a disparar.")
         return
@@ -216,15 +232,16 @@ def run(data_referencia: pd.Timestamp | None = None, modo: str = "simulacao",
         print("\nℹ️ Teste no seu e-mail: python disparador.py --teste | Envio real: python disparador.py --enviar")
 
 
-def main(extrair: bool = False, consolidar: bool = False):
-    """Ponto de entrada comum de extrator.py, atrasadas.py e disparador.py: [AAAA-MM-DD] [--teste | --enviar]."""
+def main(consolidar: bool = False):
+    """Ponto de entrada comum de extrator.py, atrasadas.py e disparador.py:
+    [AAAA-MM-DD] [--teste | --enviar] [--atualizar]  (--atualizar ignora as planilhas já baixadas e baixa de novo)."""
     flags = {a for a in sys.argv[1:] if a.startswith("--")}
-    if flags - {"--teste", "--enviar"} or len(flags) > 1:
-        raise SystemExit("Uso: python <script>.py [AAAA-MM-DD] [--teste | --enviar]")
+    if flags - {"--teste", "--enviar", "--atualizar"} or {"--teste", "--enviar"} <= flags:
+        raise SystemExit("Uso: python <script>.py [AAAA-MM-DD] [--teste | --enviar] [--atualizar]")
     datas = [a for a in sys.argv[1:] if not a.startswith("--")]
     run(pd.Timestamp(datas[0]) if datas else None,
         modo="teste" if "--teste" in flags else "enviar" if "--enviar" in flags else "simulacao",
-        extrair=extrair, consolidar=consolidar)
+        atualizar="--atualizar" in flags, consolidar=consolidar)
 
 
 if __name__ == "__main__":

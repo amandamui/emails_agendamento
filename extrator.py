@@ -1,7 +1,8 @@
 from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 import os, time
+from datetime import datetime
 
-from config import IGNORAR_CERTIFICADO, PASTA_DOWNLOADS, PASTA_ERROS, obrigatorio
+from config import IGNORAR_CERTIFICADO, MARCADOR_EXTRACAO, PASTA_DOWNLOADS, PASTA_ERROS, obrigatorio
 
 # CONFIGURAÇÕES (credenciais vêm do arquivo .env — nunca escreva senhas no código)
 EMAIL = obrigatorio("BRA_EMAIL")
@@ -67,7 +68,9 @@ def baixar_planilhas() -> int:
         aba_atrasadas.wait_for(state="visible", timeout=40000)
         aba_atrasadas.click()
 
-        # Remove as planilhas da execução anterior para não duplicar dados no consolidado
+        # Remove as planilhas da execução anterior para não duplicar dados no consolidado.
+        # O marcador sai antes: se a extração cair no meio, o disparador avisa que a pasta está incompleta.
+        MARCADOR_EXTRACAO.unlink(missing_ok=True)
         for antigo in PASTA_DOWNLOADS.glob("Agendamento*.xlsx"):
             antigo.unlink()
 
@@ -115,16 +118,19 @@ def baixar_planilhas() -> int:
 
         browser.close()
 
+    # Extração concluída (sem o marcador, o disparador avisa que podem faltar filiais).
+    MARCADOR_EXTRACAO.write_text(f"{datetime.now():%d/%m/%Y %H:%M} | {len(baixadas)} baixadas | "
+                                 f"{len(sem_dados)} sem registros | {len(falhas)} com erro\n", encoding="utf-8")
     print(f"\n📋 Resumo: {len(baixadas)} baixadas | {len(sem_dados)} sem registros | {len(falhas)} com erro")
     if sem_dados:
         print(f"   Sem registros: {', '.join(sem_dados)}  (prints em {PASTA_ERROS})")
     if falhas:
-        print(f"   Com erro: {', '.join(falhas)}")
+        print(f"   Com erro: {', '.join(falhas)}  (para baixar de novo: --atualizar)")
     return len(baixadas)
 
 
 if __name__ == "__main__":
-    # Fluxo completo: extrai do portal, consolida e segue para o disparo.
-    # Aceita os mesmos parâmetros do disparador: [AAAA-MM-DD] [--teste | --enviar]
+    # Fluxo completo: extrai do portal (se 1_downloads estiver vazia), consolida e segue para o disparo.
+    # Aceita os mesmos parâmetros do disparador: [AAAA-MM-DD] [--teste | --enviar] [--atualizar]
     import disparador
-    disparador.main(extrair=True)
+    disparador.main()
