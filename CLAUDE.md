@@ -2,6 +2,7 @@
 
 Visão geral, instalação e uso: ver README.md. Fluxo: `extrator.py` (portal, Playwright) → `atrasadas.py`
 (consolida) → `disparador.py` (filtra, cruza contatos e envia pelo Outlook, usando `teste_email.py`).
+`devolutiva.py` (terça, depois do disparador) compara a foto de hoje com a da semana passada em `5_historico`.
 Os três terminam em `disparador.main()` (`preparar_consolidado`) e completam a etapa que faltar.
 Cache (sem limite de data, como sempre foi): portal só abre com `1_downloads` vazia ou `--atualizar`;
 consolidado mais novo que as planilhas é reaproveitado, senão reconsolida (ou via `atrasadas.py`).
@@ -11,14 +12,14 @@ consolidado mais novo que as planilhas é reaproveitado, senão reconsolida (ou 
 
 ```powershell
 pip install -r requirements.txt; playwright install chromium   # setup (versões fixadas)
-.venv\Scripts\python -m py_compile extrator.py atrasadas.py teste_email.py regras.py config.py disparador.py   # checagem de sintaxe
+.venv\Scripts\python -m py_compile extrator.py atrasadas.py teste_email.py regras.py config.py disparador.py devolutiva.py   # checagem de sintaxe
 .venv\Scripts\python disparador.py            # SIMULAÇÃO (não envia); mas sem consolidado, extrai do portal
 .venv\Scripts\python disparador.py --teste    # envia todos os e-mails para o EMAIL_TESTE (assunto "[TESTE → contato]")
 ```
 
 - Não há suíte de testes. Para validar regras, chamar `regras.py` direto com `data_referencia` fixa
   (ex.: `dias_uteis_atraso(pd.Series(['16/11/2026']), pd.Timestamp('2026-11-20'))` → 3, pois 20/11 é feriado).
-- **Não rodar** `extrator.py`, `atrasadas.py`, `teste_email.py` nem `disparador.py --teste/--enviar` sem pedido explícito: enviam e-mail real
+- **Não rodar** `extrator.py`, `atrasadas.py`, `teste_email.py` nem `disparador.py`/`devolutiva.py --teste/--enviar` sem pedido explícito: enviam e-mail real
   (`mail.Send()`) e/ou logam no portal com a senha do `.env`.
 - Para testar o fluxo sem portal/Outlook: `unittest.mock.patch` em `extrator.baixar_planilhas`,
   `disparador.enviar_email` e nas pastas (`atrasadas.PASTA_DOWNLOADS`, `teste_email.PASTA_CONSOLIDADO`).
@@ -46,8 +47,8 @@ pip install -r requirements.txt; playwright install chromium   # setup (versões
 
 ## Armadilhas
 
-- Pastas de saída só em `config.py` (`PASTA_DOWNLOADS`, `PASTA_CONSOLIDADO`, `PASTA_ENVIOS`, `PASTA_ERROS`), dentro de
-  `atrasadas/1_downloads`, `2_consolidado`, `3_envios` e `4_erros`. Não escrever caminhos à mão nos scripts nem salvar na raiz.
+- Pastas de saída só em `config.py` (`PASTA_DOWNLOADS`, `PASTA_CONSOLIDADO`, `PASTA_ENVIOS`, `PASTA_ERROS`, `PASTA_HISTORICO`), dentro de
+  `atrasadas/1_downloads`, `2_consolidado`, `3_envios`, `4_erros` e `5_historico`. Não escrever caminhos à mão nos scripts nem salvar na raiz.
 - Log aberto no Excel → salva `Log_Envios_<data>.csv` à parte; nunca deixar o envio terminar sem registrar.
 - Consolidado aberto no Excel → `PermissionError`; o código salva cópia com data/hora e lê o mais recente
   (`Atrasadas_Consolidado*.xlsx`), ignorando arquivos `~$`.
@@ -61,9 +62,15 @@ pip install -r requirements.txt; playwright install chromium   # setup (versões
 - Consolidado antigo sem `Emitente` → o disparador reconsolida de `1_downloads` sozinho.
 - Base de contatos (hoje `baseagdteste.xlsx`, só teste): vários e-mails por fornecedor, na mesma célula ou em
   linhas repetidas, são juntados em um único e-mail com todos no "Para" (não usar `drop_duplicates`).
+  Separadores aceitos: `,` `;` `/` espaço e quebra de linha. E-mail inválido (ex.: grudado `a@x.com.brb@y.com.br`)
+  ou nenhum válido → o fornecedor inteiro vai para os pendentes com aviso; não adivinhar a separação.
 - "Faltam notas do fornecedor no e-mail" costuma ser a regra do 4º dia útil (Agenda recente), não bug:
   a coluna `Dias` do Excel conta desde a Emissão. Conferir com `dias_uteis_atraso(df["Agenda"])`.
 - `IGNORAR_CERTIFICADO` deve ficar `0` (desligar expõe a senha do portal a interceptação).
+
+- Histórico: o disparador grava `5_historico/Atrasadas_AAAA-MM-DD.xlsx` (data = download das planilhas, não hoje;
+  mesmo dia sobrescreve). A devolutiva compara só as notas **a cobrar** em cada foto, chave CNPJ do emitente + NF
+  (NF sozinha repete entre fornecedores). Destinatários em `EMAIL_DEVOLUTIVA` (`;`). Envio Outlook: `teste_email.enviar_outlook`.
 
 ## Git + Jira (projeto A122)
 

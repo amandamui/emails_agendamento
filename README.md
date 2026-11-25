@@ -101,7 +101,13 @@ O fornecedor da fase de teste é definido em `FORNECEDOR_TESTE` no `.env` (padr�
 - `atrasadas/3_envios/Fornecedores_Pendentes.xlsx` — notas a cobrar cujo CNPJ (coluna `Emitente`) não está
   na base, ou está com Razões Sociais diferentes (conflito avisado no console com as linhas da base).
   O cruzamento é só pelo CNPJ: CNPJ exato e, se não houver, a raiz (8 primeiros dígitos, outra filial).
+  Também ficam pendentes os fornecedores com e-mail inválido na base (ex.: dois e-mails grudados, sem
+  separador). Na base, separe os e-mails por `;`, `,`, `/`, espaço ou quebra de linha; todos vão no "Para".
 - `atrasadas/4_erros/<Filial>.png` — print da tela das filiais em que o botão de exportar não apareceu
+- `atrasadas/5_historico/Atrasadas_AAAA-MM-DD.xlsx` — foto do consolidado gravada pelo `disparador.py` (uma por dia), base da devolutiva
+- `atrasadas/3_envios/Devolutiva_AAAA-MM-DD.html` — prévia do balanço semanal (`python devolutiva.py`, sem enviar)
+
+**Devolutiva semanal (terça, depois do disparador):** `python devolutiva.py` (simulação, gera a prévia), `--teste` (envia para o `EMAIL_TESTE`) ou `--enviar` (envia para `EMAIL_DEVOLUTIVA` do `.env`). Compara as notas cobradas na foto da semana passada com a de hoje: resolvidas, que continuam pendentes e novas.
 
 ## Problemas comuns
 
