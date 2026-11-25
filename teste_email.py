@@ -280,13 +280,18 @@ def enviar_email(df_fornecedor: pd.DataFrame, fornecedor: str, destinatario: str
     assunto = f"{prefixo_assunto}Ação Necessária: Notas Atrasadas – {fornecedor.upper()}"
 
     print(f"📧 Disparando e-mail para {fornecedor}...")
+    return enviar_outlook(destinatario, assunto, corpo_email)
+
+
+def enviar_outlook(destinatario: str, assunto: str, corpo_html: str) -> bool:
+    """Envio pelo Outlook (fonte única: cobrança e devolutiva). Vários destinatários separados por ';'."""
     try:
         outlook = win32.Dispatch("outlook.application")
         mail = outlook.CreateItem(0)
         mail.SentOnBehalfOfName = EMAIL_REMETENTE
         mail.To = destinatario
         mail.Subject = assunto
-        mail.HTMLBody = corpo_email
+        mail.HTMLBody = corpo_html
         # mail.Display()  # Descomente para revisar antes de enviar (e comente o Send)
         mail.Send()
         print(f"✅ E-mail enviado com sucesso para {destinatario}!")
