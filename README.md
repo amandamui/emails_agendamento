@@ -159,7 +159,6 @@ Este projeto lida com **senha do portal** e com **dados de negócio** (CNPJs, no
 
 ## Próximos passos
 
-- [ ] Enviar para todos os fornecedores, com e-mail de contato por fornecedor
 - [ ] Agendar a execução automática semanal, **toda terça-feira** (Agendador de Tarefas do Windows). `regras.DIA_ENVIO_SEMANAL` já reserva essa configuração
 - [ ] Cadastrar feriados estaduais/municipais das filiais em `regras.FERIADOS_EXTRAS`
 - [ ] Usar uma conta de serviço no portal em vez de um usuário pessoal
