@@ -14,7 +14,22 @@ __pycache__/
 *.pyc
 
 # ===== Dados da empresa (CNPJs, NFs, e-mails de terceiros — LGPD) =====
-atrasadas/
+atrasadas/*
+!atrasadas/1_downloads/
+atrasadas/1_downloads/*
+!atrasadas/1_downloads/.gitkeep
+!atrasadas/2_consolidado/
+atrasadas/2_consolidado/*
+!atrasadas/2_consolidado/.gitkeep
+!atrasadas/3_envios/
+atrasadas/3_envios/*
+!atrasadas/3_envios/.gitkeep
+!atrasadas/4_erros/
+atrasadas/4_erros/*
+!atrasadas/4_erros/.gitkeep
+!atrasadas/5_historico/
+atrasadas/5_historico/*
+!atrasadas/5_historico/.gitkeep
 downloads/
 *.xlsx
 *.xls
