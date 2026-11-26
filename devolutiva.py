@@ -53,19 +53,34 @@ def escolher_fotos(data_atual: dt.date | None = None) -> tuple[dt.date, dt.date]
     fotos = fotos_historico()
     if data_atual is None:
         if not fotos:
-            print(f"❌ Nenhuma foto em {PASTA_HISTORICO}. Rode o disparador.py para gravar a primeira.")
+            print(f"❌ Nenhuma foto em {PASTA_HISTORICO}.")
+            print("⚠️  A devolutiva depende do disparador.py.")
+            print("👉 Execute primeiro: python disparador.py")
+            print("   Depois execute novamente: python devolutiva.py")
             return None
         data_atual = max(fotos)
         if data_atual < dt.date.today():
             print(f"⚠️  A foto mais recente é de {data_atual:%d/%m/%Y}; para comparar com hoje, "
-                  "rode antes o disparador.py (com --atualizar se as planilhas forem antigas).")
+                  "rode antes o disparador.py.")
+            print("👉 Atualize os dados: python disparador.py --atualizar")
+            print("   Depois execute novamente: python devolutiva.py")
     elif data_atual not in fotos:
         print(f"❌ Não há foto de {data_atual:%d/%m/%Y} em {PASTA_HISTORICO}.")
+        datas_disponiveis = ", ".join(d.strftime("%d/%m/%Y") for d in sorted(fotos))
+        if datas_disponiveis:
+            print(f"📅 Fotos disponíveis: {datas_disponiveis}")
+        print("👉 Gere as fotos na sequência correta:")
+        print("   1. python disparador.py --atualizar")
+        print("   2. python devolutiva.py")
         return None
 
     anteriores = [d for d in fotos if d < data_atual]
     if not anteriores:
         print(f"❌ Só existe a foto de {data_atual:%d/%m/%Y}; a devolutiva precisa da foto da semana anterior.")
+        print("👉 Gere uma primeira foto em uma semana e outra na semana seguinte:")
+        print("   1. Execute python disparador.py na primeira semana.")
+        print("   2. Execute python disparador.py --atualizar na semana seguinte.")
+        print("   3. Depois execute python devolutiva.py")
         return None
     semana_passada = [d for d in anteriores if (data_atual - d).days >= INTERVALO_DIAS]
     anterior = max(semana_passada or anteriores)
@@ -280,8 +295,10 @@ def run(data_atual: dt.date | None = None, modo: str = "simulacao"):
     if modo == "simulacao":
         previa = PASTA_ENVIOS / f"Devolutiva_{atual:%Y-%m-%d}.html"
         previa.write_text(corpo, encoding="utf-8")
-        print(f"\n🧪 SIMULAÇÃO (nada foi enviado). Prévia do e-mail: {previa}")
-        print("ℹ️  Teste no seu e-mail: python devolutiva.py --teste | Envio real: python devolutiva.py --enviar")
+        print("\n🧪 SIMULAÇÃO concluída (nada foi enviado).")
+        print(f"📬  Destinatário do teste: {EMAIL_DESTINATARIO}")
+        print("ℹ️  Enviar teste: python devolutiva.py --teste")
+        print("📧 Envio real: python devolutiva.py --enviar")
         return
 
     teste = modo == "teste"
@@ -303,7 +320,15 @@ def main():
     if flags - {"--teste", "--enviar"} or {"--teste", "--enviar"} <= flags:
         raise SystemExit("Uso: python devolutiva.py [AAAA-MM-DD] [--teste | --enviar]")
     datas = [a for a in sys.argv[1:] if not a.startswith("--")]
-    run(dt.date.fromisoformat(datas[0]) if datas else None,
+    if len(datas) > 1:
+        raise SystemExit("❌ Passe apenas uma data opcional.\n"
+                         "Uso: python devolutiva.py [AAAA-MM-DD] [--teste | --enviar]")
+    try:
+        data_atual = dt.date.fromisoformat(datas[0]) if datas else None
+    except ValueError:
+        raise SystemExit("❌ Data inválida. Use o formato AAAA-MM-DD, por exemplo: 2026-11-30.\n"
+                         "Uso: python devolutiva.py [AAAA-MM-DD] [--teste | --enviar]")
+    run(data_atual,
         modo="teste" if "--teste" in flags else "enviar" if "--enviar" in flags else "simulacao")
 
 
